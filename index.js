@@ -1,6 +1,8 @@
 const { Client } = require("@notionhq/client")
 const dayjs = require('dayjs')
 
+const fs = require('fs')
+
 var relativeTime = require('dayjs/plugin/relativeTime')
 dayjs.extend(relativeTime)
 
@@ -12,14 +14,43 @@ const notion = new Client({
 
 const databaseId = process.env.NOTION_DB
 
-const taskObject = {} 
+const taskObject = {}
+  
 
 async function populateDateStore() {
     const currentTasks = await getTasksFromDb()
+    console.log(currentTasks)
 
     for (const { pageId, dueDate, title } of currentTasks) {
         taskObject[title] = {dueDate, pageId}
     }
+}
+
+async function getTasksFromDb() {
+    const pages = []
+    let cursor = undefined
+
+    while (true) {
+        const { results, nextCursor } = await notion.databases.query({
+            database_id: databaseId,
+            start_cursor: cursor
+        })
+        pages.push(...results)
+
+        if (!nextCursor) break
+    }
+    console.log(`${pages.length} items were successfully fetched from database.`)
+
+    return pages.map(page => {
+        const dueDateProperty = page.properties['Due'].date['start']
+        const titleProp = page.properties['Name'].title[0]['plain_text']
+
+        return {
+            pageId: page.id,
+            dueDate: dueDateProperty,
+            title: titleProp
+        }
+    })
 }
 
 async function checkForCompletion(tasks) {
@@ -42,28 +73,21 @@ async function checkForCompletion(tasks) {
     return tasks
 }
 
-async function getTasksFromDb() {
-    const pages = []
-    let cursor = undefined
+function filterByDate(tasks, daysFromNow) {
+    const dueItems = {}
 
-    while (true) {
-        const { results, nextCursor } = await notion.databases.query({
-            database_id: databaseId,
-            start_cursor: cursor
-        })
-        pages.push(...results)
+    for (const task in tasks) {
+        const dueDate = tasks[task].dueDate
+        const pageId = tasks[task].pageId
+        const dateNow = dayjs().format('YYYY-MM-DD')
+        const daysTo = Number(dayjs(dateNow).to(dueDate, true).substring(0, 2))
 
-        if (!nextCursor) break
-    }
-    console.log(`${pages.length} items were successfully fetched from database.`)
-
-    return pages.map(page => {
-        const dueDateProperty = page.properties['Due'].date['start']
-        const titleProp = page.properties['Name'].title[0]['plain_text']
-        return {
-            pageId: page.id,
-            dueDate: dueDateProperty,
-            title: titleProp
+        if (daysTo <= daysFromNow) {
+            console.log(`Found task due: ${task}`)
+            dueItems[task] = { dueDate, pageId }
         }
-    })
+        
+    }
+    return dueItems
 }
+
