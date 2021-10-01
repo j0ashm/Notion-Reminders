@@ -1,0 +1,23 @@
+{
+  "name": "notion-reminders",
+  "description": "A reminder system that alerts upcoming deadlines using Email and (maybe) push notifications",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/JustinOleskii/Notion-Reminders.git"
+  },
+  "author": "JustinOleskii",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/JustinOleskii/Notion-Reminders/issues"
+  },
+  "homepage": "https://github.com/JustinOleskii/Notion-Reminders#readme",
+  "dependencies": {
+    "@notionhq/client": "^0.4.0",
+    "dotenv": "^10.0.0"
+  }
+}
