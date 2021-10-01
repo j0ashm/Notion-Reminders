@@ -1,7 +1,6 @@
 const { Client } = require("@notionhq/client")
 const dayjs = require('dayjs')
-
-const fs = require('fs')
+const cron = require('node-cron')
 
 var relativeTime = require('dayjs/plugin/relativeTime')
 dayjs.extend(relativeTime)
@@ -12,14 +11,16 @@ const notion = new Client({
     auth: process.env.NOTION_KEY,
 });
 
+const sgMail = require('@sendgrid/mail')
+sgMail.setApiKey(process.env.SENDGRID_API_KEY)
+const { email } = require('./config.json')
+
 const databaseId = process.env.NOTION_DB
 
 const taskObject = {}
-  
 
-async function populateDateStore() {
+async function populateDataStore() {
     const currentTasks = await getTasksFromDb()
-    console.log(currentTasks)
 
     for (const { pageId, dueDate, title } of currentTasks) {
         taskObject[title] = {dueDate, pageId}
@@ -91,3 +92,108 @@ function filterByDate(tasks, daysFromNow) {
     return dueItems
 }
 
+function emptyObject() {
+    for (const item in taskObject) {
+        delete taskObject[item]
+    }
+    console.log('Object emptied')
+}
+
+function sendEmailsForDueItems(dueItemList) {
+    for (const dueItem in dueItemList) {
+        const dueDate = dueItemList[dueItem].dueDate
+        const dateNow = dayjs().format('YYYY-MM-DD')
+        const daysTo = Number(dayjs(dateNow).to(dueDate, true).substring(0, 2))
+
+        if (daysTo <= 3 && daysTo >= 1) {
+            const data = {
+                from: `notion-reminders@${process.env.DOMAIN}`,
+                to: email,
+                subject: `Reminder: ${dueItem} is due soon!`,
+                text: `Hey!\n\nReminder: ${dueItem} is due in ${daysTo} day(s). Make sure to complete and turn it in.\nIgnore this email if already submitted, and don't forget to mark the task as completed on Notion!`
+            };
+            sgMail.send(data)
+            .then(() => {
+                console.log(`Email sent: ${dueItem}`)
+            })
+            .catch((err) => {
+                console.error(err);
+            })
+        }
+        if (daysTo == 1) {
+            const data = {
+                from: `notion-reminders@${process.env.DOMAIN}`,
+                to: email,
+                subject: `URGENT: ${dueItem} is due soon!`,
+                text: `URGENT!\n\n${dueItem} is due in ${daysTo} day. Make sure to complete and turn it in.\nIgnore this email if already submitted, and don't forget to mark the task as completed on Notion!`
+            };
+            sgMail.send(data)
+            .then(() => {
+                console.log(`Email sent: ${dueItem}`)
+            })
+            .catch((err) => {
+                console.error(err);
+            })
+        }
+    }
+}
+
+function sendWeeklyOverviewEmail(dueItemList) {
+    let weekTasks = ''
+    for (const dueItem in dueItemList) {
+        const dueDate = dueItemList[dueItem].dueDate
+        const dateNow = dayjs().format('YYYY-MM-DD')
+        const daysTo = Number(dayjs(dateNow).to(dueDate, true).substring(0, 2))
+        
+        if (daysTo <= 7) {
+            weekTasks += `${dueItem} - Due in ${daysTo} day(s)\n`
+        }
+    }
+    const data = {
+        from: `notion-reminders@${process.env.DOMAIN}`,
+        to: email,
+        subject: 'Your Week Ahead',
+        text: `Hi there!\nHope you had a great weekend. Here's an overview of your week ahead so that you can plan and prepare accordingly!\n\n${weekTasks}\n\nCheers!`
+    };
+    sgMail.send(data)
+    .then(() => {
+        console.log('Weekly report email sent')
+    })
+    .catch((err) => {
+        console.error(err)
+    })
+} 
+
+async function main() {
+    await populateDataStore()
+    cron.schedule('0 * * * *', async () => {
+        await checkForCompletion(taskObject)
+    }, {
+        timezone: 'Asia/Kolkata'
+    })
+
+    cron.schedule('1 6 * * *', async () => {
+        const dueItems = filterByDate(taskObject, 3)
+        sendEmailsForDueItems(dueItems)
+    }, {
+        timezone: 'Asia/Kolkata'
+    })
+
+    cron.schedule('1 0 * * *', async () => {
+        emptyObject()
+        setTimeout(async() => {
+            await populateDataStore()
+        }, 3000)
+    }, {
+        timezone: 'Asia/Kolkata'
+    })
+
+    cron.schedule('1 5 * * MON', async () => {
+        const dueItems = filterByDate(taskObject, 7)
+        sendWeeklyOverviewEmail(dueItems)
+    }, {
+        timezone: 'Asia/Kolkata'
+    })
+}
+
+main()
