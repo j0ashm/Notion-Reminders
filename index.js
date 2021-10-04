@@ -191,7 +191,7 @@ async function main() {
         timezone: 'Asia/Kolkata'
     })
 
-    cron.schedule('1 18 * * MON', async () => {
+    cron.schedule('1 4 * * TUE', async () => {
         const dueItems = filterByDate(taskObject, 7)
         sendWeeklyOverviewEmail(dueItems)
     }, {
