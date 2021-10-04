@@ -149,19 +149,22 @@ function sendWeeklyOverviewEmail(dueItemList) {
             weekTasks += `${dueItem} - Due in ${daysTo} day(s)\n`
         }
     }
-    const data = {
-        from: `notion-reminders@${process.env.DOMAIN}`,
-        to: email,
-        subject: 'Your Week Ahead',
-        text: `Hi there!\nHope you had a great weekend. Here's an overview of your week ahead so that you can plan and prepare accordingly!\n\n${weekTasks}\n\nCheers!`
-    };
-    sgMail.send(data)
-    .then(() => {
-        console.log('Weekly report email sent')
-    })
-    .catch((err) => {
-        console.error(err)
-    })
+
+    if (weekTasks != '') {
+        const data = {
+            from: `notion-reminders@${process.env.DOMAIN}`,
+            to: email,
+            subject: 'Your Week Ahead',
+            text: `Hi there!\nHope you had a great weekend. Here's an overview of your week ahead so that you can plan and prepare accordingly!\n\n${weekTasks}\n\nCheers!`
+        };
+        sgMail.send(data)
+        .then(() => {
+            console.log('Weekly report email sent')
+        })
+        .catch((err) => {
+            console.error(err)
+        })
+    }
 } 
 
 async function main() {
@@ -188,7 +191,7 @@ async function main() {
         timezone: 'Asia/Kolkata'
     })
 
-    cron.schedule('1 5 * * MON', async () => {
+    cron.schedule('1 18 * * MON', async () => {
         const dueItems = filterByDate(taskObject, 7)
         sendWeeklyOverviewEmail(dueItems)
     }, {
